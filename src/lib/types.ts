@@ -210,3 +210,140 @@ export interface ObservationAdvice {
 	expertRecommendation: string;
 	followUpSteps: string[];
 }
+
+export interface RiskAssessment {
+	id: string;
+	sampleId: string;
+	assessedAt: string;
+	assessedBy: string | null;
+	riskLevel: 'low' | 'medium' | 'high' | 'critical';
+	riskScore: number;
+	confidence: number;
+	factors: RiskFactor[];
+	recommendation: string;
+}
+
+export interface RiskFactor {
+	name: string;
+	weight: number;
+	description: string;
+	contribution: 'positive' | 'negative';
+}
+
+export interface SimilarSpeciesComparison {
+	id: string;
+	targetSpecies: string;
+	similarSpecies: SpeciesComparison[];
+	generatedAt: string;
+}
+
+export interface SpeciesComparison {
+	species: Species;
+	similarityScore: number;
+	keyDifferences: ComparisonDifference[];
+	riskComparison: RiskComparison;
+}
+
+export interface ComparisonDifference {
+	feature: string;
+	targetValue: string;
+	comparedValue: string;
+	differenceLevel: 'minor' | 'moderate' | 'major';
+}
+
+export interface RiskComparison {
+	targetRisk: string;
+	comparedRisk: string;
+	notes: string;
+}
+
+export type EmergencyScenario = 'contact' | 'ingestion' | 'inhalation' | 'mixedStorage' | 'crossContamination';
+
+export interface EmergencyGuidance {
+	id: string;
+	scenario: EmergencyScenario;
+	scenarioLabel: string;
+	severity: 'low' | 'medium' | 'high' | 'critical';
+	title: string;
+	description: string;
+	immediateActions: string[];
+	firstAid: string[];
+	medicalAttention: string[];
+	preventionTips: string[];
+	relatedSpecies: string[];
+}
+
+export interface WarningHistory {
+	id: string;
+	sampleId: string;
+	sampleNumber: string;
+	suspectedSpecies: string | null;
+	generatedAt: string;
+	generatedBy: string | null;
+	riskLevel: 'low' | 'medium' | 'high';
+	reportType: 'single' | 'batch' | 'comparison';
+	reportId: string;
+	shared: boolean;
+	shareCount: number;
+}
+
+export interface Collaborator {
+	id: string;
+	username: string;
+	email?: string;
+	role: 'viewer' | 'editor' | 'reviewer';
+	sharedAt: string;
+	sharedBy: string;
+	lastViewedAt: string | null;
+	canExport: boolean;
+	canComment: boolean;
+}
+
+export interface ShareRecord {
+	id: string;
+	reportId: string;
+	token: string;
+	createdAt: string;
+	expiresAt: string | null;
+	collaborators: Collaborator[];
+	allowDownload: boolean;
+	allowComments: boolean;
+	viewCount: number;
+}
+
+export interface CompleteRiskReport {
+	id: string;
+	generatedAt: string;
+	generatedBy: string | null;
+	samples: FungiSample[];
+	riskAssessments: RiskAssessment[];
+	speciesComparisons: SimilarSpeciesComparison[];
+	emergencyGuidance: EmergencyGuidance[];
+	summary: ReportSummary;
+	exportedAt?: string;
+}
+
+export interface ReportSummary {
+	totalSamples: number;
+	highRiskCount: number;
+	mediumRiskCount: number;
+	lowRiskCount: number;
+	criticalFindings: string[];
+	recommendations: string[];
+	generatedDate: string;
+}
+
+export const EMERGENCY_SCENARIOS: { value: EmergencyScenario; label: string; icon: string }[] = [
+	{ value: 'contact', label: '皮肤接触', icon: 'pan_tool' },
+	{ value: 'ingestion', label: '误食中毒', icon: 'restaurant' },
+	{ value: 'inhalation', label: '孢子吸入', icon: 'air' },
+	{ value: 'mixedStorage', label: '混放污染', icon: 'inventory_2' },
+	{ value: 'crossContamination', label: '交叉污染', icon: 'warning' }
+];
+
+export const RISK_SCORE_THRESHOLDS = {
+	low: { min: 0, max: 30, label: '低风险' },
+	medium: { min: 31, max: 60, label: '中风险' },
+	high: { min: 61, max: 85, label: '高风险' },
+	critical: { min: 86, max: 100, label: '极高风险' }
+};

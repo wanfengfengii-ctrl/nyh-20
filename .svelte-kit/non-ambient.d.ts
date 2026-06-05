@@ -29,7 +29,7 @@ declare module "$app/types" {
 	type MatcherParam<M> = M extends (param : string) => param is (infer U extends string) ? U : string;
 
 	export interface AppTypes {
-		RouteId(): "/" | "/export" | "/map" | "/share" | "/share/\\[token]" | "/share/[token]" | "/species" | "/statistics" | "/warning";
+		RouteId(): "/" | "/export" | "/map" | "/risk-assessment" | "/share" | "/share/\\[token]" | "/share/[token]" | "/species" | "/statistics" | "/warning";
 		RouteParams(): {
 			"/share/\\[token]": { token: string };
 			"/share/[token]": { token: string }
@@ -38,6 +38,7 @@ declare module "$app/types" {
 			"/": { token?: string | undefined };
 			"/export": Record<string, never>;
 			"/map": Record<string, never>;
+			"/risk-assessment": Record<string, never>;
 			"/share": { token?: string | undefined };
 			"/share/\\[token]": { token: string };
 			"/share/[token]": { token: string };
@@ -45,7 +46,7 @@ declare module "$app/types" {
 			"/statistics": Record<string, never>;
 			"/warning": Record<string, never>
 		};
-		Pathname(): "/" | "/export" | "/map" | `/share/${string}` & {} | "/species" | "/statistics" | "/warning";
+		Pathname(): "/" | "/export" | "/map" | "/risk-assessment" | `/share/${string}` & {} | "/species" | "/statistics" | "/warning";
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
 		Asset(): "/robots.txt" | string & {};
 	}

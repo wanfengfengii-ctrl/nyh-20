@@ -12,6 +12,7 @@
 		{ path: '/', label: '样本列表', icon: 'list' },
 		{ path: '/map', label: '地图分布', icon: 'map' },
 		{ path: '/species', label: '物种管理', icon: 'category' },
+		{ path: '/risk-assessment', label: '风险研判中心', icon: 'shield' },
 		{ path: '/warning', label: '安全预警', icon: 'security' },
 		{ path: '/statistics', label: '统计视图', icon: 'bar_chart' },
 		{ path: '/export', label: '导出分享', icon: 'ios_share' }
@@ -33,7 +34,7 @@
 		href="https://fonts.googleapis.com/icon?family=Material+Icons"
 		rel="stylesheet"
 	/>
-	<title>野生菌观察平台</title>
+	<title>智能风险研判与应急指引中心</title>
 </svelte:head>
 
 <div class="min-h-screen bg-surface-50-900-token">
@@ -43,8 +44,8 @@
 				<div class="flex items-center gap-3">
 					<span class="material-icons text-3xl">nature</span>
 					<div>
-						<h1 class="text-2xl font-bold">野生菌观察平台</h1>
-						<p class="text-sm text-white/80">Fungi Observation Platform</p>
+						<h1 class="text-2xl font-bold">智能风险研判与应急指引中心</h1>
+						<p class="text-sm text-white/80">Intelligent Risk Assessment & Emergency Guidance Center</p>
 					</div>
 				</div>
 				<div class="flex items-center gap-4">

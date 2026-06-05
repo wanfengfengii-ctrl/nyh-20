@@ -14,7 +14,18 @@ import type {
 	HandlingAdvice,
 	ToxicSpeciesWarning,
 	ObservationAdvice,
-	SimilarSpecies
+	SimilarSpecies,
+	RiskAssessment,
+	RiskFactor,
+	SimilarSpeciesComparison,
+	SpeciesComparison,
+	EmergencyGuidance,
+	EmergencyScenario,
+	WarningHistory,
+	Collaborator,
+	ShareRecord,
+	CompleteRiskReport,
+	ReportSummary
 } from './types';
 
 const DB_NAME = 'FungiObservationDB';
@@ -1008,5 +1019,802 @@ export function exportWarningReportToHTML(report: WarningReport, sample: FungiSa
 export function downloadWarningReport(report: WarningReport, sample: FungiSample) {
 	const html = exportWarningReportToHTML(report, sample);
 	const filename = `预警报告-${sample.sampleNumber}-${new Date().toISOString().split('T')[0]}.html`;
+	downloadFile(html, filename, 'text/html');
+}
+
+function createSimpleStore<T>(key: string, initialValue: T): Writable<T> {
+	let storedValue: T = initialValue;
+
+	if (browser) {
+		const saved = localStorage.getItem(key);
+		if (saved) {
+			try {
+				storedValue = JSON.parse(saved);
+			} catch {
+				storedValue = initialValue;
+			}
+		}
+	}
+
+	const store = writable<T>(storedValue);
+
+	if (browser) {
+		store.subscribe((value) => {
+			localStorage.setItem(key, JSON.stringify(value));
+		});
+	}
+
+	return store;
+}
+
+export const warningHistory = createSimpleStore<WarningHistory[]>('warning-history', []);
+export const shareRecords = createSimpleStore<ShareRecord[]>('share-records', []);
+
+export function assessRisk(sample: FungiSample, speciesList: Species[]): RiskAssessment {
+	const factors: RiskFactor[] = [];
+	let totalScore = 0;
+	let totalWeight = 0;
+
+	if (sample.riskLevel === 'high') {
+		factors.push({
+			name: '风险等级标记',
+			weight: 30,
+			description: '样本已被标记为高风险',
+			contribution: 'negative'
+		});
+		totalScore += 30;
+	} else if (sample.riskLevel === 'medium') {
+		factors.push({
+			name: '风险等级标记',
+			weight: 15,
+			description: '样本已被标记为中风险',
+			contribution: 'negative'
+		});
+		totalScore += 15;
+	}
+	totalWeight += 30;
+
+	const suspected = sample.suspectedSpecies?.toLowerCase() || '';
+	const matchedSpecies = speciesList.find(
+		(s) => s.name.toLowerCase().includes(suspected) || suspected.includes(s.name.toLowerCase())
+	);
+
+	if (matchedSpecies) {
+		if (matchedSpecies.isPoisonous) {
+			const weight = matchedSpecies.riskLevel === 'high' ? 35 : 20;
+			factors.push({
+				name: '物种毒性',
+				weight,
+				description: `疑似物种"${matchedSpecies.name}"${matchedSpecies.riskLevel === 'high' ? '剧毒' : '有毒'}`,
+				contribution: 'negative'
+			});
+			totalScore += weight;
+		} else {
+			factors.push({
+				name: '物种毒性',
+				weight: 10,
+				description: `疑似物种"${matchedSpecies.name}"被标记为可食用`,
+				contribution: 'positive'
+			});
+			totalScore -= 5;
+		}
+		totalWeight += 35;
+	} else {
+		factors.push({
+			name: '物种不确定性',
+			weight: 20,
+			description: '未匹配到已知物种，风险未知',
+			contribution: 'negative'
+		});
+		totalScore += 15;
+		totalWeight += 20;
+	}
+
+	if (sample.identificationStatus !== 'identified') {
+		factors.push({
+			name: '鉴定状态',
+			weight: 15,
+			description: '样本未完成正式鉴定',
+			contribution: 'negative'
+		});
+		totalScore += 10;
+		totalWeight += 15;
+	}
+
+	const habitatRisks: Record<string, number> = {
+		森林: 15,
+		山地: 15,
+		湿地: 12,
+		草地: 10,
+		公园: 8,
+		庭院: 5,
+		路边: 20,
+		其他: 10
+	};
+	const habitatRisk = habitatRisks[sample.habitatType] || 10;
+	factors.push({
+		name: '生境风险',
+		weight: 15,
+		description: `${sample.habitatType}环境的野生菌风险指数`,
+		contribution: habitatRisk > 12 ? 'negative' : 'positive'
+	});
+	totalScore += habitatRisk * 0.5;
+	totalWeight += 15;
+
+	if (sample.isAbnormal) {
+		factors.push({
+			name: '异常标记',
+			weight: 20,
+			description: '样本被标记为异常，需特别注意',
+			contribution: 'negative'
+		});
+		totalScore += 15;
+		totalWeight += 20;
+	}
+
+	const season = getSeason(sample.collectionDate);
+	if (season === '夏季' || season === '秋季') {
+		factors.push({
+			name: '季节因素',
+			weight: 10,
+			description: `${season}是毒蘑菇高发季节`,
+			contribution: 'negative'
+		});
+		totalScore += 8;
+		totalWeight += 10;
+	}
+
+	const finalScore = Math.min(100, Math.max(0, Math.round((totalScore / Math.max(totalWeight, 1)) * 100)));
+
+	let riskLevel: RiskAssessment['riskLevel'] = 'low';
+	if (finalScore >= 86) riskLevel = 'critical';
+	else if (finalScore >= 61) riskLevel = 'high';
+	else if (finalScore >= 31) riskLevel = 'medium';
+
+	const recommendations: Record<string, string> = {
+		low: '风险较低，但仍需谨慎鉴别，确认无误后方可食用。',
+		medium: '存在一定风险，建议由专业人员复核，不建议自行食用。',
+		high: '风险较高，强烈建议不要食用，交由专业机构处理。',
+		critical: '极高风险！严禁食用，如已接触请立即采取应急措施。'
+	};
+
+	return {
+		id: generateId(),
+		sampleId: sample.id,
+		assessedAt: new Date().toISOString(),
+		assessedBy: get(currentUser)?.id || null,
+		riskLevel,
+		riskScore: finalScore,
+		confidence: matchedSpecies ? 85 : 60,
+		factors,
+		recommendation: recommendations[riskLevel]
+	};
+}
+
+export function generateSimilarSpeciesComparison(
+	sample: FungiSample,
+	speciesList: Species[]
+): SimilarSpeciesComparison {
+	const targetName = sample.suspectedSpecies || '未知物种';
+	const similarSpecies: SpeciesComparison[] = [];
+
+	const poisonousSpecies = speciesList.filter((s) => s.isPoisonous);
+
+	for (const sp of poisonousSpecies.slice(0, 5)) {
+		const similarityScore = calculateSimilarity(sample, sp);
+		if (similarityScore >= 30) {
+			const keyDifferences = generateComparisonDifferences(sample, sp);
+			similarSpecies.push({
+				species: sp,
+				similarityScore,
+				keyDifferences,
+				riskComparison: {
+					targetRisk: sample.riskLevel,
+					comparedRisk: sp.riskLevel,
+					notes: sp.riskLevel === 'high' ? '该物种剧毒，需特别警惕！' : '该物种有毒，注意鉴别。'
+				}
+			});
+		}
+	}
+
+	similarSpecies.sort((a, b) => b.similarityScore - a.similarityScore);
+
+	return {
+		id: generateId(),
+		targetSpecies: targetName,
+		similarSpecies: similarSpecies.slice(0, 3),
+		generatedAt: new Date().toISOString()
+	};
+}
+
+function calculateSimilarity(sample: FungiSample, species: Species): number {
+	let score = 0;
+	const sampleHabitat = sample.habitatType;
+	if (species.commonLocations.some((loc) => loc.includes(sampleHabitat) || sampleHabitat.includes(loc))) {
+		score += 25;
+	}
+
+	const season = getSeason(sample.collectionDate);
+	if (species.seasonality.includes(season)) {
+		score += 25;
+	}
+
+	const suspected = sample.suspectedSpecies?.toLowerCase() || '';
+	const spName = species.name.toLowerCase();
+	if (suspected && (spName.includes(suspected) || suspected.includes(spName))) {
+		score += 40;
+	}
+
+	if (sample.capColor && species.description.includes(sample.capColor)) {
+		score += 10;
+	}
+
+	return Math.min(100, score);
+}
+
+function generateComparisonDifferences(
+	sample: FungiSample,
+	species: Species
+): SpeciesComparison['keyDifferences'] {
+	return [
+		{
+			feature: '菌盖颜色',
+			targetValue: sample.capColor || '未知',
+			comparedValue: species.identificationKeys[0] || '查看详情',
+			differenceLevel: 'moderate'
+		},
+		{
+			feature: '生境类型',
+			targetValue: sample.habitatType,
+			comparedValue: species.commonLocations.join('、'),
+			differenceLevel: sample.habitatType && species.commonLocations.includes(sample.habitatType) ? 'minor' : 'major'
+		},
+		{
+			feature: '季节分布',
+			targetValue: getSeason(sample.collectionDate),
+			comparedValue: species.seasonality.join('、'),
+			differenceLevel: species.seasonality.includes(getSeason(sample.collectionDate)) ? 'minor' : 'moderate'
+		},
+		{
+			feature: '鉴别要点',
+			targetValue: sample.identificationEvidences.length > 0 ? '有鉴定记录' : '无详细记录',
+			comparedValue: species.identificationKeys.slice(0, 2).join('；'),
+			differenceLevel: 'major'
+		}
+	];
+}
+
+const EMERGENCY_GUIDANCE_DATABASE: Record<EmergencyScenario, Omit<EmergencyGuidance, 'id'>> = {
+	contact: {
+		scenario: 'contact',
+		scenarioLabel: '皮肤接触',
+		severity: 'medium',
+		title: '毒蘑菇皮肤接触应急处理指引',
+		description: '某些毒蘑菇的汁液可能引起皮肤过敏、瘙痒、红肿等反应。',
+		immediateActions: [
+			'立即用大量清水冲洗接触部位至少15分钟',
+			'避免用手揉眼睛、鼻子或嘴巴',
+			'如果有蘑菇汁液残留，用肥皂轻轻清洗',
+			'不要抓挠受影响的皮肤区域'
+		],
+		firstAid: [
+			'如有红肿，可用冷敷缓解症状',
+			'可涂抹温和的抗过敏药膏',
+			'保持皮肤清洁干燥',
+			'穿宽松透气的衣物'
+		],
+		medicalAttention: [
+			'如果出现严重红肿、水泡或疼痛加剧',
+			'如果症状在24小时内没有改善',
+			'如果接触部位是眼睛或黏膜',
+			'如果出现全身过敏反应如呼吸困难'
+		],
+		preventionTips: [
+			'采集和处理蘑菇时务必佩戴一次性手套',
+			'避免让蘑菇汁液接触破损皮肤',
+			'处理后彻底清洗双手和工具',
+			'儿童应在成人监护下接触蘑菇'
+		],
+		relatedSpecies: ['白毒伞', '毒蝇伞', '毒粉褶菌']
+	},
+	ingestion: {
+		scenario: 'ingestion',
+		scenarioLabel: '误食中毒',
+		severity: 'critical',
+		title: '毒蘑菇误食中毒应急处理指引',
+		description: '误食毒蘑菇可能导致严重中毒，甚至危及生命，必须立即采取行动。',
+		immediateActions: [
+			'立即拨打急救电话120',
+			'保留剩余的蘑菇样本（非常重要！）',
+			'如果患者清醒，可尝试催吐（注意：昏迷者禁止催吐）',
+			'记录食用时间、食用量和症状',
+			'让患者保持侧卧姿势，防止呕吐物窒息'
+		],
+		firstAid: [
+			'给清醒患者饮用大量温水或淡盐水',
+			'可服用活性炭吸附毒素（需遵医嘱）',
+			'不要给昏迷患者喂食任何东西',
+			'监测患者的意识和呼吸状态'
+		],
+		medicalAttention: [
+			'立即送医院救治，切勿拖延！',
+			'携带剩余蘑菇样本供医生鉴定',
+			'告知医生食用蘑菇的详细情况',
+			'如果多人同时食用，全部人员都应就医检查'
+		],
+		preventionTips: [
+			'绝对不要食用不确定的野生菌',
+			'不采集形态特征不明显的幼菇',
+			'不采集过于成熟或腐烂的蘑菇',
+			'食用野生菌应彻底煮熟，不生吃',
+			'不同种类的野生菌分开烹饪'
+		],
+		relatedSpecies: ['白毒伞', '鳞柄白毒伞', '鬼笔鹅膏', '毒粉褶菌']
+	},
+	inhalation: {
+		scenario: 'inhalation',
+		scenarioLabel: '孢子吸入',
+		severity: 'medium',
+		title: '蘑菇孢子吸入应急处理指引',
+		description: '某些蘑菇的孢子可能引起呼吸道过敏或肺部不适。',
+		immediateActions: [
+			'立即转移到空气新鲜的地方',
+			'保持呼吸道通畅',
+			'如果佩戴口罩，更换新的口罩',
+			'用清水漱口和清洗鼻腔'
+		],
+		firstAid: [
+			'如有咳嗽，可饮用温水缓解',
+			'保持休息，避免剧烈活动',
+			'室内保持通风',
+			'如有必要可使用加湿器'
+		],
+		medicalAttention: [
+			'如果出现呼吸困难或胸闷',
+			'如果有哮喘发作的迹象',
+			'如果咳嗽持续超过24小时',
+			'如果出现发热或其他全身症状'
+		],
+		preventionTips: [
+			'在孢子密集环境下佩戴口罩',
+			'避免近距离嗅闻陌生蘑菇',
+			'室内处理蘑菇时保持通风',
+			'过敏体质者特别注意防护'
+		],
+		relatedSpecies: ['马勃类', '多孔菌', '大型伞菌']
+	},
+	mixedStorage: {
+		scenario: 'mixedStorage',
+		scenarioLabel: '混放污染',
+		severity: 'high',
+		title: '蘑菇混放污染应急处理指引',
+		description: '有毒蘑菇与可食用蘑菇混放可能造成交叉污染，增加误食风险。',
+		immediateActions: [
+			'立即将可疑蘑菇与其他蘑菇分开',
+			'清理接触过可疑蘑菇的容器和工具',
+			'标记可疑样本，禁止食用',
+			'检查是否有误食情况'
+		],
+		firstAid: [
+			'用清洁剂彻底清洗受污染的容器',
+			'用热水消毒接触过的刀具和砧板',
+			'可疑蘑菇单独密封存放并标记警示',
+			'如已食用混放蘑菇，按误食处理'
+		],
+		medicalAttention: [
+			'如果有人误食混放的蘑菇',
+			'如果出现任何不适症状',
+			'如果无法确定哪些蘑菇被污染',
+			'如果有高风险蘑菇混入'
+		],
+		preventionTips: [
+			'不同种类蘑菇分开存放',
+			'每个容器标注蘑菇种类和采集信息',
+			'可疑蘑菇单独存放并做明显标记',
+			'储存区域保持清洁和干燥',
+			'定期检查储存的蘑菇状态'
+		],
+		relatedSpecies: ['所有有毒种类']
+	},
+	crossContamination: {
+		scenario: 'crossContamination',
+		scenarioLabel: '交叉污染',
+		severity: 'high',
+		title: '厨房交叉污染应急处理指引',
+		description: '处理毒蘑菇的工具与食物加工工具混用可能造成交叉污染。',
+		immediateActions: [
+			'立即停止使用受污染的工具',
+			'隔离可能受污染的食物',
+			'标记污染区域和物品',
+			'检查是否有误食情况'
+		],
+		firstAid: [
+			'用热水和洗涤剂反复清洗受污染的厨具',
+			'砧板可用漂白剂溶液消毒（1:9比例）',
+			'受污染的食物建议丢弃，不要冒险食用',
+			'双手用肥皂彻底清洗至少20秒'
+		],
+		medicalAttention: [
+			'如果有人食用了可能受污染的食物',
+			'如果出现任何中毒症状',
+			'如果高毒蘑菇造成的污染',
+			'如果不确定污染程度'
+		],
+		preventionTips: [
+			'处理野生菌使用专用工具和砧板',
+			'野生菌和日常食材分开处理',
+			'处理完可疑蘑菇后彻底清洁和消毒',
+			'厨房保持良好的卫生习惯',
+			'加工野生菌时避免同时准备其他食物'
+		],
+		relatedSpecies: ['所有有毒种类']
+	}
+};
+
+export function getEmergencyGuidance(scenario: EmergencyScenario): EmergencyGuidance {
+	const guidance = EMERGENCY_GUIDANCE_DATABASE[scenario];
+	return {
+		...guidance,
+		id: generateId()
+	};
+}
+
+export function getAllEmergencyGuidance(): EmergencyGuidance[] {
+	return Object.keys(EMERGENCY_GUIDANCE_DATABASE).map((key) =>
+		getEmergencyGuidance(key as EmergencyScenario)
+	);
+}
+
+export function getRelevantEmergencyGuidance(
+	sample: FungiSample,
+	speciesList: Species[]
+): EmergencyGuidance[] {
+	const relevantScenarios: EmergencyScenario[] = ['ingestion', 'contact'];
+	const matchedSpecies = speciesList.find(
+		(s) =>
+			s.name.toLowerCase().includes(sample.suspectedSpecies?.toLowerCase() || '') ||
+			sample.suspectedSpecies?.toLowerCase().includes(s.name.toLowerCase())
+	);
+
+	if (matchedSpecies?.riskLevel === 'high') {
+		relevantScenarios.push('mixedStorage', 'crossContamination');
+	}
+
+	return relevantScenarios.map((s) => getEmergencyGuidance(s));
+}
+
+export function addWarningHistory(
+	sample: FungiSample,
+	report: WarningReport,
+	reportType: WarningHistory['reportType'] = 'single'
+): WarningHistory {
+	const historyItem: WarningHistory = {
+		id: generateId(),
+		sampleId: sample.id,
+		sampleNumber: sample.sampleNumber,
+		suspectedSpecies: sample.suspectedSpecies,
+		generatedAt: new Date().toISOString(),
+		generatedBy: get(currentUser)?.id || null,
+		riskLevel: sample.riskLevel,
+		reportType,
+		reportId: report.id,
+		shared: false,
+		shareCount: 0
+	};
+
+	warningHistory.update((history) => [historyItem, ...history]);
+	return historyItem;
+}
+
+export function clearOldHistory(days: number = 30): void {
+	const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+	warningHistory.update((history) =>
+		history.filter((item) => new Date(item.generatedAt).getTime() > cutoff)
+	);
+}
+
+export function createShareRecord(
+	reportId: string,
+	options: {
+		expireDays?: number;
+		allowDownload?: boolean;
+		allowComments?: boolean;
+	} = {}
+): ShareRecord {
+	const { expireDays = 7, allowDownload = true, allowComments = true } = options;
+	const token = generateShareToken(reportId, expireDays, allowDownload);
+
+	const record: ShareRecord = {
+		id: generateId(),
+		reportId,
+		token,
+		createdAt: new Date().toISOString(),
+		expiresAt: expireDays > 0 ? new Date(Date.now() + expireDays * 24 * 60 * 60 * 1000).toISOString() : null,
+		collaborators: [],
+		allowDownload,
+		allowComments,
+		viewCount: 0
+	};
+
+	shareRecords.update((records) => [record, ...records]);
+
+	warningHistory.update((history) =>
+		history.map((item) =>
+			item.reportId === reportId ? { ...item, shared: true, shareCount: item.shareCount + 1 } : item
+		)
+	);
+
+	return record;
+}
+
+export function addCollaborator(
+	shareRecordId: string,
+	collaborator: Omit<Collaborator, 'id' | 'sharedAt' | 'lastViewedAt'>
+): ShareRecord | null {
+	let updated: ShareRecord | null = null;
+	shareRecords.update((records) =>
+		records.map((record) => {
+			if (record.id === shareRecordId) {
+				const newCollaborator: Collaborator = {
+					...collaborator,
+					id: generateId(),
+					sharedAt: new Date().toISOString(),
+					lastViewedAt: null
+				};
+				updated = { ...record, collaborators: [...record.collaborators, newCollaborator] };
+				return updated;
+			}
+			return record;
+		})
+	);
+	return updated;
+}
+
+export function generateCompleteRiskReport(samples: FungiSample[]): CompleteRiskReport {
+	const speciesList = get(species);
+	const riskAssessments = samples.map((s) => assessRisk(s, speciesList));
+	const speciesComparisons = samples.map((s) => generateSimilarSpeciesComparison(s, speciesList));
+	const emergencyGuidance = getAllEmergencyGuidance();
+
+	const highRiskCount = riskAssessments.filter((r) => r.riskLevel === 'high' || r.riskLevel === 'critical').length;
+	const mediumRiskCount = riskAssessments.filter((r) => r.riskLevel === 'medium').length;
+	const lowRiskCount = riskAssessments.filter((r) => r.riskLevel === 'low').length;
+
+	const criticalFindings: string[] = [];
+	if (highRiskCount > 0) {
+		criticalFindings.push(`发现 ${highRiskCount} 个高/极高风险样本，需立即处理`);
+	}
+	if (samples.some((s) => s.identificationStatus !== 'identified')) {
+		criticalFindings.push('部分样本未完成鉴定，建议补充鉴定后再食用');
+	}
+	if (samples.some((s) => s.isAbnormal)) {
+		criticalFindings.push('存在标记为异常的样本，需特别关注');
+	}
+
+	const recommendations: string[] = [
+		'高风险样本建议销毁或交由专业机构处理',
+		'所有样本食用前必须经过专业鉴定确认',
+		'建议建立样本追踪档案，记录处理过程',
+		'定期开展野生菌安全知识培训'
+	];
+
+	return {
+		id: generateId(),
+		generatedAt: new Date().toISOString(),
+		generatedBy: get(currentUser)?.id || null,
+		samples,
+		riskAssessments,
+		speciesComparisons,
+		emergencyGuidance,
+		summary: {
+			totalSamples: samples.length,
+			highRiskCount,
+			mediumRiskCount,
+			lowRiskCount,
+			criticalFindings,
+			recommendations,
+			generatedDate: new Date().toISOString()
+		}
+	};
+}
+
+export function exportCompleteRiskReportToHTML(report: CompleteRiskReport): string {
+	const riskColors: Record<string, string> = {
+		critical: '#dc2626',
+		high: '#ef4444',
+		medium: '#f59e0b',
+		low: '#10b981'
+	};
+
+	const riskLabels: Record<string, string> = {
+		critical: '极高风险',
+		high: '高风险',
+		medium: '中风险',
+		low: '低风险'
+	};
+
+	return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能风险研判与应急指引完整报告</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; }
+        h1 { color: #1f2937; border-bottom: 3px solid #3b82f6; padding-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        h2 { color: #1f2937; margin-top: 32px; border-left: 4px solid #3b82f6; padding-left: 12px; }
+        h3 { color: #374151; margin-top: 20px; }
+        .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 20px 0; }
+        .summary-card { text-align: center; padding: 20px; border-radius: 12px; color: white; }
+        .summary-card .number { font-size: 36px; font-weight: bold; }
+        .summary-card .label { font-size: 14px; opacity: 0.9; }
+        .critical { background: linear-gradient(135deg, #dc2626, #b91c1c); }
+        .high { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .medium { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .low { background: linear-gradient(135deg, #10b981, #059669); }
+        .section { background: #f9fafb; padding: 20px; border-radius: 12px; margin-top: 16px; }
+        .sample-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+        .sample-header { display: flex; justify-content: space-between; align-items: center; }
+        .risk-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; color: white; font-weight: 500; font-size: 12px; }
+        .findings { background: #fef2f2; border-left: 4px solid #ef4444; padding: 16px; border-radius: 0 8px 8px 0; }
+        .recommendations { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; border-radius: 0 8px 8px 0; }
+        ul { margin: 8px 0; padding-left: 20px; }
+        li { margin: 6px 0; }
+        .comparison-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        .comparison-table th, .comparison-table td { border: 1px solid #e5e7eb; padding: 8px 12px; text-align: left; }
+        .comparison-table th { background: #f3f4f6; }
+        .emergency-card { border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+        .emergency-critical { background: #fef2f2; border: 1px solid #fecaca; }
+        .emergency-high { background: #fffbeb; border: 1px solid #fde68a; }
+        .emergency-medium { background: #fef3c7; border: 1px solid #fcd34d; }
+        .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; text-align: center; }
+        .risk-bar { height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+        .risk-bar-fill { height: 100%; transition: width 0.3s; }
+    </style>
+</head>
+<body>
+    <h1><span>🛡️</span> 智能风险研判与应急指引完整报告</h1>
+    
+    <div class="section">
+        <p><strong>报告生成时间：</strong>${new Date(report.generatedAt).toLocaleString('zh-CN')}</p>
+        <p><strong>分析样本数：</strong>${report.summary.totalSamples} 个</p>
+    </div>
+
+    <h2>📊 风险概览</h2>
+    <div class="summary-grid">
+        <div class="summary-card critical">
+            <div class="number">${report.summary.highRiskCount}</div>
+            <div class="label">高/极高风险</div>
+        </div>
+        <div class="summary-card medium">
+            <div class="number">${report.summary.mediumRiskCount}</div>
+            <div class="label">中风险</div>
+        </div>
+        <div class="summary-card low">
+            <div class="number">${report.summary.lowRiskCount}</div>
+            <div class="label">低风险</div>
+        </div>
+        <div class="summary-card" style="background: linear-gradient(135deg, #6366f1, #4f46e5);">
+            <div class="number">${report.summary.totalSamples}</div>
+            <div class="label">总样本</div>
+        </div>
+    </div>
+
+    ${
+			report.summary.criticalFindings.length > 0
+				? `
+    <div class="findings">
+        <h3 style="margin-top: 0; color: #dc2626;">⚠️ 关键发现</h3>
+        <ul>
+            ${report.summary.criticalFindings.map((f) => `<li>${f}</li>`).join('')}
+        </ul>
+    </div>`
+				: ''
+		}
+
+    <div class="recommendations">
+        <h3 style="margin-top: 0; color: #2563eb;">💡 专家建议</h3>
+        <ul>
+            ${report.summary.recommendations.map((r) => `<li>${r}</li>`).join('')}
+        </ul>
+    </div>
+
+    <h2>🧪 样本风险详细评估</h2>
+    ${report.riskAssessments
+			.map((assessment, index) => {
+				const sample = report.samples[index];
+				return `
+    <div class="sample-card">
+        <div class="sample-header">
+            <div>
+                <strong>${sample.sampleNumber}</strong> - ${sample.suspectedSpecies || '未鉴定'}
+                <span class="text-sm text-gray-500">${sample.habitatType} · ${sample.collectionDate}</span>
+            </div>
+            <span class="risk-badge" style="background-color: ${riskColors[assessment.riskLevel]};">
+                ${riskLabels[assessment.riskLevel]} (${assessment.riskScore}分)
+            </span>
+        </div>
+        <div class="risk-bar">
+            <div class="risk-bar-fill" style="width: ${assessment.riskScore}%; background-color: ${riskColors[assessment.riskLevel]};"></div>
+        </div>
+        <p style="margin-top: 12px; color: #374151;">${assessment.recommendation}</p>
+        <p style="font-size: 12px; color: #6b7280; margin-top: 8px;">
+            置信度：${assessment.confidence}% | 评估因素：${assessment.factors.length} 项
+        </p>
+    </div>`;
+			})
+			.join('')}
+
+    <h2>☠️ 相似高危物种对比</h2>
+    ${report.speciesComparisons
+			.slice(0, 3)
+			.map((comparison) => {
+				if (comparison.similarSpecies.length === 0) return '';
+				return `
+    <div class="section">
+        <h3 style="margin-top: 0;">目标物种：${comparison.targetSpecies}</h3>
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>对比物种</th>
+                    <th>相似度</th>
+                    <th>风险等级</th>
+                    <th>主要区别</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${comparison.similarSpecies
+									.map(
+										(sp) => `
+                <tr>
+                    <td><strong>${sp.species.name}</strong></td>
+                    <td>${sp.similarityScore}%</td>
+                    <td><span class="risk-badge" style="background-color: ${riskColors[sp.species.riskLevel] || '#6b7280'};">${riskLabels[sp.species.riskLevel] || sp.species.riskLevel}</span></td>
+                    <td>${sp.keyDifferences.map((d) => `${d.feature}: ${d.targetValue} vs ${d.comparedValue}`).join('；')}</td>
+                </tr>`
+									)
+									.join('')}
+            </tbody>
+        </table>
+    </div>`;
+			})
+			.join('')}
+
+    <h2>🚨 场景化应急处理指引</h2>
+    ${report.emergencyGuidance
+			.map((guidance) => {
+				const severityClass =
+					guidance.severity === 'critical'
+						? 'emergency-critical'
+						: guidance.severity === 'high'
+							? 'emergency-high'
+							: 'emergency-medium';
+				return `
+    <div class="emergency-card ${severityClass}">
+        <h3 style="margin-top: 0;">${guidance.title}</h3>
+        <p><strong>场景：</strong>${guidance.scenarioLabel} | <strong>严重程度：</strong>${guidance.severity === 'critical' ? '🔴 极严重' : guidance.severity === 'high' ? '🟠 严重' : '🟡 中等'}</p>
+        <p>${guidance.description}</p>
+        <h4>立即行动：</h4>
+        <ul>${guidance.immediateActions.map((a) => `<li>${a}</li>`).join('')}</ul>
+        <h4>急救措施：</h4>
+        <ul>${guidance.firstAid.map((a) => `<li>${a}</li>`).join('')}</ul>
+        <h4>需就医情况：</h4>
+        <ul>${guidance.medicalAttention.map((a) => `<li>${a}</li>`).join('')}</ul>
+    </div>`;
+			})
+			.join('')}
+
+    <div class="footer">
+        <p>📅 报告生成时间：${new Date(report.generatedAt).toLocaleString('zh-CN')}</p>
+        <p>⚠️ 本报告由智能风险研判系统自动生成，仅供参考。</p>
+        <p>🍄 食用野生菌存在风险，请务必经过专业鉴定确认后再食用。</p>
+    </div>
+</body>
+</html>`;
+}
+
+export function downloadCompleteRiskReport(report: CompleteRiskReport): void {
+	const html = exportCompleteRiskReportToHTML(report);
+	const filename = `智能风险研判完整报告-${new Date().toISOString().split('T')[0]}.html`;
 	downloadFile(html, filename, 'text/html');
 }
