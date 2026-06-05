@@ -26,6 +26,7 @@ export interface Species {
 
 export interface Filters {
 	location: string;
+	capColor: string;
 	sporePrintColor: string;
 	identificationStatus: string;
 	isAbnormal: boolean | null;

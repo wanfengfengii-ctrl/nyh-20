@@ -38,6 +38,7 @@ export const species = createLocalStore<Species[]>('fungi-species', [
 ]);
 export const filters = createLocalStore<Filters>('fungi-filters', {
 	location: '',
+	capColor: '',
 	sporePrintColor: '',
 	identificationStatus: '',
 	isAbnormal: null

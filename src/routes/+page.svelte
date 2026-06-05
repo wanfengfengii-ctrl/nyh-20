@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { samples, filters, species, generateId, validateSample } from '$lib/stores';
-	import { SPORE_COLORS, IDENTIFICATION_STATUS } from '$lib/types';
+	import { SPORE_COLORS, IDENTIFICATION_STATUS, CAP_COLORS } from '$lib/types';
 	import SampleForm from '$lib/components/SampleForm.svelte';
 	import type { FungiSample } from '$lib/types';
 
@@ -10,6 +10,9 @@
 
 	let filteredSamples = $derived($samples.filter((sample) => {
 		if ($filters.location && !sample.location.includes($filters.location)) {
+			return false;
+		}
+		if ($filters.capColor && sample.capColor !== $filters.capColor) {
 			return false;
 		}
 		if ($filters.sporePrintColor && sample.sporePrintColor !== $filters.sporePrintColor) {
@@ -113,6 +116,7 @@
 	function resetFilters() {
 		$filters = {
 			location: '',
+			capColor: '',
 			sporePrintColor: '',
 			identificationStatus: '',
 			isAbnormal: null
@@ -153,7 +157,7 @@
 			</h3>
 		</div>
 		<div class="card-section">
-			<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+			<div class="grid grid-cols-1 md:grid-cols-5 gap-4">
 				<div class="form-control">
 					<label class="form-control-label">
 						<span class="form-control-label-text">采集地点</span>
@@ -170,6 +174,18 @@
 							<option value={loc}></option>
 						{/each}
 					</datalist>
+				</div>
+
+				<div class="form-control">
+					<label class="form-control-label">
+						<span class="form-control-label-text">菌盖颜色</span>
+					</label>
+					<select bind:value={$filters.capColor} class="select">
+						<option value="">全部颜色</option>
+						{#each CAP_COLORS as color}
+							<option value={color}>{color}</option>
+						{/each}
+					</select>
 				</div>
 
 				<div class="form-control">
