@@ -1,3 +1,28 @@
+export type UserRole = 'guest' | 'user' | 'identifier' | 'admin';
+
+export interface User {
+	id: string;
+	username: string;
+	role: UserRole;
+	avatar?: string;
+	createdAt: string;
+	lastLoginAt: string;
+}
+
+export interface IdentificationEvidence {
+	type: 'morphology' | 'spore' | 'microscope' | 'dna' | 'reference';
+	description: string;
+	confidence: number;
+}
+
+export interface SampleImage {
+	id: string;
+	dataUrl: string;
+	caption?: string;
+	uploadedAt: string;
+	uploadedBy: string;
+}
+
 export interface FungiSample {
 	id: string;
 	sampleNumber: string;
@@ -10,18 +35,35 @@ export interface FungiSample {
 	sporePrintColor: string | null;
 	suspectedSpecies: string | null;
 	identificationStatus: 'pending' | 'identified' | 'unidentified';
+	identificationEvidences: IdentificationEvidence[];
+	identifiedBy: string | null;
+	identifiedAt: string | null;
 	notes: string;
 	isAbnormal: boolean;
 	hasSporePrint: boolean;
+	riskLevel: 'low' | 'medium' | 'high';
+	riskConfirmed: boolean;
+	images: SampleImage[];
+	createdBy: string;
 	createdAt: string;
+	updatedBy: string | null;
 	updatedAt: string;
+	views: number;
+	shared: boolean;
+	shareToken?: string;
 }
 
 export interface Species {
 	id: string;
 	name: string;
 	isPoisonous: boolean;
+	riskLevel: 'low' | 'medium' | 'high';
 	description: string;
+	identificationKeys: string[];
+	seasonality: string[];
+	commonLocations: string[];
+	createdAt: string;
+	updatedAt: string;
 }
 
 export interface Filters {
@@ -30,6 +72,25 @@ export interface Filters {
 	sporePrintColor: string;
 	identificationStatus: string;
 	isAbnormal: boolean | null;
+	riskLevel: string;
+	createdBy: string;
+	dateFrom: string;
+	dateTo: string;
+}
+
+export interface ShareConfig {
+	enabled: boolean;
+	token: string;
+	expiresAt?: string;
+	allowComments: boolean;
+	allowDownload: boolean;
+}
+
+export interface DataSyncInfo {
+	lastSyncAt: string;
+	version: number;
+	deviceId: string;
+	pendingChanges: string[];
 }
 
 export const HABITAT_TYPES = [
@@ -77,3 +138,26 @@ export const IDENTIFICATION_STATUS = [
 	{ value: 'identified', label: '已鉴定' },
 	{ value: 'unidentified', label: '无法鉴定' }
 ];
+
+export const RISK_LEVELS = [
+	{ value: 'low', label: '低风险', class: 'badge-success' },
+	{ value: 'medium', label: '中风险', class: 'badge-warning' },
+	{ value: 'high', label: '高风险', class: 'badge-error' }
+];
+
+export const USER_ROLES = [
+	{ value: 'guest', label: '访客', permissions: ['read'] },
+	{ value: 'user', label: '普通用户', permissions: ['read', 'create', 'edit_own'] },
+	{ value: 'identifier', label: '鉴定师', permissions: ['read', 'create', 'edit_own', 'edit_any', 'identify'] },
+	{ value: 'admin', label: '管理员', permissions: ['read', 'create', 'edit_any', 'delete', 'identify', 'manage_users'] }
+];
+
+export const EVIDENCE_TYPES = [
+	{ value: 'morphology', label: '形态特征' },
+	{ value: 'spore', label: '孢子特征' },
+	{ value: 'microscope', label: '显微镜观察' },
+	{ value: 'dna', label: 'DNA检测' },
+	{ value: 'reference', label: '文献参考' }
+];
+
+export const SEASONS = ['春季', '夏季', '秋季', '冬季'];

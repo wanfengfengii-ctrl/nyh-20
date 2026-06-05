@@ -128,10 +128,12 @@
     "imports": [
       "_index-server.js",
       "_client.js",
-      "_dev.js"
+      "_dev.js",
+      "_stores.js",
+      "_types.js"
     ],
     "css": [
-      "_app/immutable/assets/_layout.rcYlvicJ.css"
+      "_app/immutable/assets/_layout.Df2e0IXD.css"
     ]
   },
   "src/routes/+page.svelte": {
@@ -145,6 +147,26 @@
       "_types.js"
     ]
   },
+  "src/routes/export/+page.svelte": {
+    "file": "entries/pages/export/_page.svelte.js",
+    "name": "entries/pages/export/_page.svelte",
+    "src": "src/routes/export/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_dev.js",
+      "_stores.js"
+    ]
+  },
+  "src/routes/map/+page.svelte": {
+    "file": "entries/pages/map/_page.svelte.js",
+    "name": "entries/pages/map/_page.svelte",
+    "src": "src/routes/map/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_dev.js",
+      "_stores.js"
+    ]
+  },
   "src/routes/species/+page.svelte": {
     "file": "entries/pages/species/_page.svelte.js",
     "name": "entries/pages/species/_page.svelte",
@@ -152,7 +174,8 @@
     "isEntry": true,
     "imports": [
       "_dev.js",
-      "_stores.js"
+      "_stores.js",
+      "_types.js"
     ]
   },
   "src/routes/statistics/+page.svelte": {

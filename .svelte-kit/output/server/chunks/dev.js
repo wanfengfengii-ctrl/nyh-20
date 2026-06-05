@@ -715,6 +715,77 @@ function safe_equals(value) {
 	return !safe_not_equal(value, this.v);
 }
 //#endregion
+//#region node_modules/svelte/src/internal/shared/clone.js
+/** @import { Snapshot } from './types' */
+/**
+* In dev, we keep track of which properties could not be cloned. In prod
+* we don't bother, but we keep a dummy array around so that the
+* signature stays the same
+* @type {string[]}
+*/
+var empty = [];
+/**
+* @template T
+* @param {T} value
+* @param {boolean} [skip_warning]
+* @param {boolean} [no_tojson]
+* @returns {Snapshot<T>}
+*/
+function snapshot(value, skip_warning = false, no_tojson = false) {
+	return clone(value, /* @__PURE__ */ new Map(), "", empty, null, no_tojson);
+}
+/**
+* @template T
+* @param {T} value
+* @param {Map<T, Snapshot<T>>} cloned
+* @param {string} path
+* @param {string[]} paths
+* @param {null | T} [original] The original value, if `value` was produced from a `toJSON` call
+* @param {boolean} [no_tojson]
+* @returns {Snapshot<T>}
+*/
+function clone(value, cloned, path, paths, original = null, no_tojson = false) {
+	if (typeof value === "object" && value !== null) {
+		var unwrapped = cloned.get(value);
+		if (unwrapped !== void 0) return unwrapped;
+		if (value instanceof Map) return new Map(value);
+		if (value instanceof Set) return new Set(value);
+		if (is_array(value)) {
+			var copy = Array(value.length);
+			cloned.set(value, copy);
+			if (original !== null) cloned.set(original, copy);
+			for (var i = 0; i < value.length; i += 1) {
+				var element = value[i];
+				if (i in value) copy[i] = clone(element, cloned, path, paths, null, no_tojson);
+			}
+			return copy;
+		}
+		if (get_prototype_of(value) === object_prototype) {
+			/** @type {Snapshot<any>} */
+			copy = {};
+			cloned.set(value, copy);
+			if (original !== null) cloned.set(original, copy);
+			for (var key of Object.keys(value)) copy[key] = clone(value[key], cloned, path, paths, null, no_tojson);
+			return copy;
+		}
+		if (value instanceof Date) return structuredClone(value);
+		if (typeof value.toJSON === "function" && !no_tojson) return clone(
+			/** @type {T & { toJSON(): any } } */
+			value.toJSON(),
+			cloned,
+			path,
+			paths,
+			value
+		);
+	}
+	if (value instanceof EventTarget) return value;
+	try {
+		return structuredClone(value);
+	} catch (e) {
+		return value;
+	}
+}
+//#endregion
 //#region node_modules/svelte/src/internal/client/context.js
 /** @import { ComponentContext, DevStackEntry, Effect } from '#client' */
 /** @type {ComponentContext | null} */
@@ -954,6 +1025,18 @@ function writable(value, start = noop) {
 		update,
 		subscribe
 	};
+}
+/**
+* Get the current value from a store by subscribing and immediately unsubscribing.
+*
+* @template T
+* @param {Readable<T>} store
+* @returns {T}
+*/
+function get$1(store) {
+	let value;
+	subscribe_to_store(store, (_) => value = _)();
+	return value;
 }
 //#endregion
 //#region node_modules/svelte/src/internal/client/reactivity/store.js
@@ -3366,6 +3449,14 @@ function attr_class(value, hash, directives) {
 	return result ? ` class="${escape_html(result, true)}"` : "";
 }
 /**
+* @param {any} value
+* @param {Record<string,any>|[Record<string,any>,Record<string,any>]} [directives]
+*/
+function attr_style(value, directives) {
+	var result = to_style(value, directives);
+	return result ? ` style="${escape_html(result, true)}"` : "";
+}
+/**
 * @template V
 * @param {Record<string, [any, any, any]>} store_values
 * @param {string} store_name
@@ -4138,4 +4229,4 @@ function get_user_code_location() {
 	return get_stack().filter((line) => line.trim().startsWith("at ")).map((line) => line.replace(/\((.*):\d+:\d+\)$/, (_, file) => `(${file})`)).join("\n");
 }
 //#endregion
-export { getAllContexts as $, push as A, clsx$1 as B, set as C, writable as D, readable as E, hydration_mismatch as F, getAbortSignal as G, HYDRATION_ERROR as H, lifecycle_double_unmount as I, array_from as J, LEGACY_PROPS as K, state_proxy_unmount as L, hydrating as M, set_hydrate_node as N, component_context as O, set_hydrating as P, createContext as Q, hydration_failed as R, mutable_source as S, boundary as T, get_render_context as U, escape_html as V, async_mode_flag as W, noop as X, define_property as Y, run as Z, clear_text_content as _, head as a, hydratable_serialization_failed as at, get_next_sibling as b, stringify as c, active_effect as d, getContext as et, active_reaction as f, component_root as g, set_active_reaction as h, ensure_array_like as i, hydratable_clobbering as it, hydrate_node as j, pop as k, unsubscribe_stores as l, set_active_effect as m, attr_class as n, setContext as nt, render as o, lifecycle_function_unavailable as ot, get as p, STATE_SYMBOL as q, derived as r, ssr_context as rt, store_get as s, experimental_async_required as st, get_user_code_location as t, hasContext as tt, is_passive_event as u, create_text as v, flushSync as w, init_operations as x, get_first_child as y, attr as z };
+export { noop as $, component_context as A, state_proxy_unmount as B, mutable_source as C, get$1 as D, boundary as E, hydrating as F, HYDRATION_ERROR as G, attr as H, set_hydrate_node as I, getAbortSignal as J, get_render_context as K, set_hydrating as L, push as M, snapshot as N, readable as O, hydrate_node as P, define_property as Q, hydration_mismatch as R, init_operations as S, flushSync as T, clsx$1 as U, hydration_failed as V, escape_html as W, STATE_SYMBOL as X, LEGACY_PROPS as Y, array_from as Z, component_root as _, ensure_array_like as a, setContext as at, get_first_child as b, store_get as c, hydratable_serialization_failed as ct, is_passive_event as d, run as et, active_effect as f, set_active_reaction as g, set_active_effect as h, derived as i, hasContext as it, pop as j, writable as k, stringify as l, lifecycle_function_unavailable as lt, get as m, attr_class as n, getAllContexts as nt, head as o, ssr_context as ot, active_reaction as p, async_mode_flag as q, attr_style as r, getContext as rt, render as s, hydratable_clobbering as st, get_user_code_location as t, createContext as tt, unsubscribe_stores as u, experimental_async_required as ut, clear_text_content as v, set as w, get_next_sibling as x, create_text as y, lifecycle_double_unmount as z };

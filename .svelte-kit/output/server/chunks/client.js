@@ -2,7 +2,7 @@ import { t as index_server_exports } from "./index-server.js";
 import { v as noop } from "./shared.js";
 import "./environment.js";
 import "./exports.js";
-import { D as writable, X as noop$1 } from "./dev.js";
+import { $ as noop$1, k as writable } from "./dev.js";
 import "./index-server2.js";
 import "./internal.js";
 import "@sveltejs/kit/internal";

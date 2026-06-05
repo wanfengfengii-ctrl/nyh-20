@@ -50,5 +50,89 @@ var IDENTIFICATION_STATUS = [
 		label: "无法鉴定"
 	}
 ];
+var RISK_LEVELS = [
+	{
+		value: "low",
+		label: "低风险",
+		class: "badge-success"
+	},
+	{
+		value: "medium",
+		label: "中风险",
+		class: "badge-warning"
+	},
+	{
+		value: "high",
+		label: "高风险",
+		class: "badge-error"
+	}
+];
+var USER_ROLES = [
+	{
+		value: "guest",
+		label: "访客",
+		permissions: ["read"]
+	},
+	{
+		value: "user",
+		label: "普通用户",
+		permissions: [
+			"read",
+			"create",
+			"edit_own"
+		]
+	},
+	{
+		value: "identifier",
+		label: "鉴定师",
+		permissions: [
+			"read",
+			"create",
+			"edit_own",
+			"edit_any",
+			"identify"
+		]
+	},
+	{
+		value: "admin",
+		label: "管理员",
+		permissions: [
+			"read",
+			"create",
+			"edit_any",
+			"delete",
+			"identify",
+			"manage_users"
+		]
+	}
+];
+var EVIDENCE_TYPES = [
+	{
+		value: "morphology",
+		label: "形态特征"
+	},
+	{
+		value: "spore",
+		label: "孢子特征"
+	},
+	{
+		value: "microscope",
+		label: "显微镜观察"
+	},
+	{
+		value: "dna",
+		label: "DNA检测"
+	},
+	{
+		value: "reference",
+		label: "文献参考"
+	}
+];
+var SEASONS = [
+	"春季",
+	"夏季",
+	"秋季",
+	"冬季"
+];
 //#endregion
-export { SPORE_COLORS as i, HABITAT_TYPES as n, IDENTIFICATION_STATUS as r, CAP_COLORS as t };
+export { RISK_LEVELS as a, USER_ROLES as c, IDENTIFICATION_STATUS as i, EVIDENCE_TYPES as n, SEASONS as o, HABITAT_TYPES as r, SPORE_COLORS as s, CAP_COLORS as t };
