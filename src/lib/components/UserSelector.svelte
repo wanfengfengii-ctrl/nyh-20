@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { currentUser, users, hasPermission, generateId } from '$lib/stores';
+	import { currentUser, users, hasPermission, generateId, deleteUser } from '$lib/stores';
 	import { USER_ROLES } from '$lib/types';
 	import type { User, UserRole } from '$lib/types';
 
@@ -148,9 +148,9 @@
 										{#if user.id !== 'system' && user.id !== 'guest'}
 											<button
 												class="btn btn-ghost btn-sm text-error"
-												onclick={() => {
+												onclick={async () => {
 													if (confirm('确定删除此用户？')) {
-														users.update((u) => u.filter((x) => x.id !== user.id));
+														await deleteUser(user.id);
 													}
 												}}
 											>

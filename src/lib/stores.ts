@@ -477,8 +477,45 @@ export function downloadFile(content: string, filename: string, mimeType: string
 	URL.revokeObjectURL(url);
 }
 
-export function generateShareToken(sampleId: string): string {
-	return btoa(`${sampleId}:${Date.now()}`).replace(/=/g, '');
+export function generateShareToken(
+	sampleIds: string,
+	expireDays: number = 7,
+	allowDownload: boolean = true
+): string {
+	const token = btoa(`${sampleIds}:${Date.now()}`).replace(/=/g, '');
+	const shareData = {
+		sampleIds: sampleIds.split(','),
+		config: {
+			allowDownload,
+			expiresAt: expireDays > 0 ? new Date(Date.now() + expireDays * 24 * 60 * 60 * 1000).toISOString() : null
+		},
+		createdAt: new Date().toISOString()
+	};
+	if (browser) {
+		localStorage.setItem(`share-${token}`, JSON.stringify(shareData));
+	}
+	return token;
+}
+
+export function getShareData(token: string): {
+	samples: FungiSample[];
+	config: { allowDownload: boolean; expiresAt: string | null };
+} | null {
+	if (!browser) return null;
+	const shareDataStr = localStorage.getItem(`share-${token}`);
+	if (!shareDataStr) return null;
+
+	try {
+		const shareData = JSON.parse(shareDataStr);
+		const currentSamples = get(samples);
+		const sharedSamples = currentSamples.filter((s) => shareData.sampleIds.includes(s.id));
+		return {
+			samples: sharedSamples,
+			config: shareData.config
+		};
+	} catch {
+		return null;
+	}
 }
 
 export function getSeason(date: string): string {
@@ -487,6 +524,75 @@ export function getSeason(date: string): string {
 	if (month >= 6 && month <= 8) return '夏季';
 	if (month >= 9 && month <= 11) return '秋季';
 	return '冬季';
+}
+
+export async function importData(data: {
+	samples?: FungiSample[];
+	species?: Species[];
+}): Promise<{ imported: number; conflicts: string[] }> {
+	const imported: string[] = [];
+	const conflicts: string[] = [];
+
+	if (data.samples && Array.isArray(data.samples)) {
+		const currentSamples = get(samples);
+		const newSamples = [...currentSamples];
+
+		for (const sample of data.samples) {
+			const exists = currentSamples.find((s) => s.id === sample.id);
+			if (exists) {
+				conflicts.push(`样本 ${sample.sampleNumber || sample.id} 已存在`);
+			} else {
+				newSamples.push(sample);
+				imported.push(sample.id);
+			}
+		}
+
+		samples.set(newSamples);
+		await samples.saveToDB(newSamples);
+	}
+
+	if (data.species && Array.isArray(data.species)) {
+		const currentSpecies = get(species);
+		const newSpecies = [...currentSpecies];
+
+		for (const sp of data.species) {
+			const exists = currentSpecies.find((s) => s.id === sp.id);
+			if (!exists) {
+				newSpecies.push(sp);
+			}
+		}
+
+		if (newSpecies.length !== currentSpecies.length) {
+			species.set(newSpecies);
+			await species.saveToDB(newSpecies);
+		}
+	}
+
+	return { imported: imported.length, conflicts };
+}
+
+export async function deleteSample(id: string): Promise<void> {
+	const currentSamples = get(samples);
+	const newSamples = currentSamples.filter((s) => s.id !== id);
+	samples.set(newSamples);
+	await samples.saveToDB(newSamples);
+	await dbDelete('samples', id);
+}
+
+export async function deleteSpecies(id: string): Promise<void> {
+	const currentSpecies = get(species);
+	const newSpecies = currentSpecies.filter((s) => s.id !== id);
+	species.set(newSpecies);
+	await species.saveToDB(newSpecies);
+	await dbDelete('species', id);
+}
+
+export async function deleteUser(id: string): Promise<void> {
+	const currentUsers = get(users);
+	const newUsers = currentUsers.filter((u) => u.id !== id);
+	users.set(newUsers);
+	await users.saveToDB(newUsers);
+	await dbDelete('users', id);
 }
 
 export async function initData() {

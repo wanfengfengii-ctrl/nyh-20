@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { samples, species, exportToCSV, exportToJSON, downloadFile, generateShareToken } from '$lib/stores';
+	import { samples, species, exportToCSV, exportToJSON, downloadFile, generateShareToken, importData } from '$lib/stores';
 	import type { FungiSample } from '$lib/types';
 
 	let selectedSamples = $state<Set<string>>(new Set());
@@ -56,7 +56,11 @@
 	}
 
 	function generateShareLink() {
-		const token = generateShareToken(Array.from(selectedSamples).join(','));
+		const token = generateShareToken(
+			Array.from(selectedSamples).join(','),
+			shareExpireDays,
+			allowDownload
+		);
 		const baseUrl = window.location.origin;
 		shareLink = `${baseUrl}/share/${token}`;
 		showShareModal = true;
@@ -292,18 +296,29 @@
 							type="file"
 							accept=".json"
 							class="hidden"
-							onchange={(e) => {
+							onchange={async (e) => {
 								const file = (e.target as HTMLInputElement).files?.[0];
 								if (file) {
 									const reader = new FileReader();
-									reader.onload = (ev) => {
+									reader.onload = async (ev) => {
 										try {
 											const data = JSON.parse(ev.target?.result as string);
 											if (data.samples && Array.isArray(data.samples)) {
-												alert(`找到 ${data.samples.length} 条样本数据，导入功能开发中...`);
+												const result = await importData(data);
+												let message = `成功导入 ${result.imported} 条样本数据`;
+												if (result.conflicts.length > 0) {
+													message += `\n\n跳过 ${result.conflicts.length} 条已存在的数据：\n${result.conflicts.slice(0, 5).join('\n')}`;
+													if (result.conflicts.length > 5) {
+														message += `\n... 还有 ${result.conflicts.length - 5} 条`;
+													}
+												}
+												alert(message);
+											} else {
+												alert('文件中没有找到样本数据');
 											}
-										} catch {
-											alert('无效的 JSON 文件');
+										} catch (error) {
+											console.error('Import error:', error);
+											alert('无效的 JSON 文件或导入失败');
 										}
 									};
 									reader.readAsText(file);

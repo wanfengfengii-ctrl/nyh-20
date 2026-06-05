@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { species, generateId, hasPermission, currentUser } from '$lib/stores';
+	import { species, generateId, hasPermission, currentUser, deleteSpecies } from '$lib/stores';
 	import type { Species } from '$lib/types';
 	import { SEASONS, HABITAT_TYPES, RISK_LEVELS } from '$lib/types';
 
@@ -38,9 +38,9 @@
 		showForm = true;
 	}
 
-	function deleteSpecies(id: string) {
+	async function handleDeleteSpecies(id: string) {
 		if (confirm('确定要删除这个物种吗？')) {
-			species.update((s) => s.filter((sp) => sp.id !== id));
+			await deleteSpecies(id);
 		}
 	}
 
@@ -373,7 +373,7 @@
 							<span class="material-icons">edit</span>
 							编辑
 						</button>
-						<button class="btn btn-ghost btn-sm text-error" onclick={() => deleteSpecies(sp.id)}>
+						<button class="btn btn-ghost btn-sm text-error" onclick={() => handleDeleteSpecies(sp.id)}>
 							<span class="material-icons">delete</span>
 							删除
 						</button>

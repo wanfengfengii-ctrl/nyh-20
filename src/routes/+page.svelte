@@ -7,7 +7,8 @@
 		generateId,
 		validateSample,
 		hasPermission,
-		canEditSample
+		canEditSample,
+		deleteSample
 	} from '$lib/stores';
 	import { SPORE_COLORS, IDENTIFICATION_STATUS, CAP_COLORS, RISK_LEVELS } from '$lib/types';
 	import SampleForm from '$lib/components/SampleForm.svelte';
@@ -106,14 +107,14 @@
 		viewingSample = sample;
 	}
 
-	function deleteSample(id: string) {
+	async function handleDeleteSample(id: string) {
 		if (!hasPermission($currentUser, 'delete')) {
 			alert('您没有删除样本的权限');
 			return;
 		}
 
 		if (confirm('确定要删除这个样本吗？')) {
-			samples.update((s) => s.filter((sample) => sample.id !== id));
+			await deleteSample(id);
 		}
 	}
 
@@ -518,7 +519,7 @@
 									{#if hasPermission($currentUser, 'delete')}
 										<button
 											class="btn btn-ghost btn-sm text-error"
-											onclick={() => deleteSample(sample.id)}
+											onclick={() => handleDeleteSample(sample.id)}
 										>
 											<span class="material-icons">delete</span>
 										</button>
