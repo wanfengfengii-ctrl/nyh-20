@@ -161,3 +161,52 @@ export const EVIDENCE_TYPES = [
 ];
 
 export const SEASONS = ['春季', '夏季', '秋季', '冬季'];
+
+export interface WarningReport {
+	id: string;
+	sampleId: string;
+	generatedAt: string;
+	suspectedSpecies: string | null;
+	riskLevel: 'low' | 'medium' | 'high';
+	collectionSeason: string;
+	habitatType: string;
+	edibleRisk: EdibleRiskWarning;
+	handlingAdvice: HandlingAdvice;
+	toxicSpeciesWarning: ToxicSpeciesWarning;
+	observationAdvice: ObservationAdvice;
+}
+
+export interface EdibleRiskWarning {
+	level: 'safe' | 'caution' | 'danger' | 'unknown';
+	title: string;
+	description: string;
+	reasons: string[];
+}
+
+export interface HandlingAdvice {
+	contactSafety: string[];
+	storageAdvice: string[];
+	disposalAdvice: string[];
+	emergencySteps: string[];
+}
+
+export interface ToxicSpeciesWarning {
+	similarSpecies: SimilarSpecies[];
+	keyDifferences: string[];
+	seasonalWarning: string;
+	habitatWarning: string;
+}
+
+export interface SimilarSpecies {
+	name: string;
+	riskLevel: 'low' | 'medium' | 'high';
+	description: string;
+	distinguishingFeatures: string[];
+}
+
+export interface ObservationAdvice {
+	additionalChecks: string[];
+	identificationTips: string[];
+	expertRecommendation: string;
+	followUpSteps: string[];
+}

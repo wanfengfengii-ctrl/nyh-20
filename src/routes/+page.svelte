@@ -12,6 +12,7 @@
 	} from '$lib/stores';
 	import { SPORE_COLORS, IDENTIFICATION_STATUS, CAP_COLORS, RISK_LEVELS } from '$lib/types';
 	import SampleForm from '$lib/components/SampleForm.svelte';
+	import WarningReportPanel from '$lib/components/WarningReportPanel.svelte';
 	import type { FungiSample } from '$lib/types';
 
 	let showForm = $state(false);
@@ -292,6 +293,8 @@
 							<p class="p-3 bg-surface-100-800-token rounded">{viewingSample.notes}</p>
 						</div>
 					{/if}
+
+					<WarningReportPanel sample={viewingSample} />
 
 					<div class="flex gap-3 justify-end pt-4">
 						<button class="btn btn-ghost" onclick={() => (viewingSample = null)}>关闭</button>
