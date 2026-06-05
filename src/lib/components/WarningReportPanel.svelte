@@ -2,7 +2,7 @@
 	import { species, generateWarningReport, downloadWarningReport } from '$lib/stores';
 	import type { FungiSample, WarningReport } from '$lib/types';
 
-	export let sample: FungiSample;
+	let { sample } = $props<{ sample: FungiSample }>();
 
 	let report = $state<WarningReport | null>(null);
 	let showReport = $state(false);

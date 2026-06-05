@@ -797,7 +797,7 @@ function generateToxicSpeciesWarning(sample: FungiSample, speciesList: Species[]
 
 	const suspected = sample.suspectedSpecies?.toLowerCase() || '';
 	const filteredSpecies = similarSpecies.filter(
-		(s) => !suspected || s.name.toLowerCase().includes(suspected) || suspected.includes(s.name.toLowerCase()) || Math.random() > 0.5
+		(s) => !suspected || s.name.toLowerCase().includes(suspected) || suspected.includes(s.name.toLowerCase())
 	);
 
 	const keyDifferences: string[] = [

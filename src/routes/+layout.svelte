@@ -12,6 +12,7 @@
 		{ path: '/', label: '样本列表', icon: 'list' },
 		{ path: '/map', label: '地图分布', icon: 'map' },
 		{ path: '/species', label: '物种管理', icon: 'category' },
+		{ path: '/warning', label: '安全预警', icon: 'security' },
 		{ path: '/statistics', label: '统计视图', icon: 'bar_chart' },
 		{ path: '/export', label: '导出分享', icon: 'ios_share' }
 	];

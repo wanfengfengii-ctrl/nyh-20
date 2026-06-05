@@ -1,6 +1,16 @@
 <script lang="ts">
-	import { samples, species, exportToCSV, exportToJSON, downloadFile, generateShareToken, importData } from '$lib/stores';
-	import type { FungiSample } from '$lib/types';
+	import {
+		samples,
+		species,
+		exportToCSV,
+		exportToJSON,
+		downloadFile,
+		generateShareToken,
+		importData,
+		generateWarningReport,
+		exportWarningReportToHTML
+	} from '$lib/stores';
+	import type { FungiSample, WarningReport } from '$lib/types';
 
 	let selectedSamples = $state<Set<string>>(new Set());
 	let shareLink = $state<string>('');
@@ -53,6 +63,79 @@
 		const json = exportToJSON(data);
 		const filename = `fungi-export-${new Date().toISOString().split('T')[0]}.json`;
 		downloadFile(json, filename, 'application/json');
+	}
+
+	function handleExportWarningReport() {
+		const samples = getSelectedSamples();
+		if (samples.length === 0) return;
+
+		const reports = samples.map((sample) => generateWarningReport(sample, allSpecies));
+
+		const htmlContent = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>真菌安全预警报告 - 批量导出</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
+        h1 { color: #1f2937; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }
+        h2 { color: #1f2937; margin-top: 32px; border-left: 4px solid #3b82f6; padding-left: 12px; }
+        h3 { color: #374151; margin-top: 16px; }
+        .summary { background: #f3f4f6; padding: 16px; border-radius: 8px; margin-bottom: 24px; }
+        .report-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 24px; page-break-inside: avoid; }
+        .high-risk { background: #fef2f2; border-color: #fecaca; }
+        .medium-risk { background: #fffbeb; border-color: #fde68a; }
+        .low-risk { background: #f0fdf4; border-color: #bbf7d0; }
+        .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; text-align: center; }
+        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; background: #f9fafb; padding: 16px; border-radius: 8px; margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+    <h1>🍄 真菌安全预警报告 - 批量导出</h1>
+    <div class="summary">
+        <p><strong>报告生成时间：</strong>${new Date().toLocaleString('zh-CN')}</p>
+        <p><strong>报告样本数：</strong>${reports.length} 个</p>
+        <p><strong>高风险样本：</strong>${reports.filter((r) => r.edibleRisk.level === 'danger').length} 个</p>
+        <p><strong>中风险样本：</strong>${reports.filter((r) => r.edibleRisk.level === 'caution').length} 个</p>
+        <p><strong>低风险样本：</strong>${reports.filter((r) => r.edibleRisk.level === 'safe').length} 个</p>
+    </div>
+    ${reports
+			.map(
+				(report) => {
+					const sample = samples.find((s) => s.id === report.sampleId);
+					return `
+    <div class="report-card ${report.edibleRisk.level === 'danger' ? 'high-risk' : report.edibleRisk.level === 'caution' ? 'medium-risk' : 'low-risk'}">
+        <h2>样本 ${sample?.sampleNumber || report.sampleId.slice(0, 8)} - ${report.suspectedSpecies || '未鉴定'}</h2>
+        <div class="info-grid">
+            <div><strong>采集日期：</strong>${sample?.collectionDate || '未知'}</div>
+            <div><strong>采集地点：</strong>${sample?.location || '未知'}</div>
+            <div><strong>采集季节：</strong>${report.collectionSeason}</div>
+            <div><strong>生境类型：</strong>${report.habitatType}</div>
+        </div>
+        <h3>⚠️ 食用风险评估</h3>
+        <p><strong>${report.edibleRisk.title}</strong></p>
+        <p>${report.edibleRisk.description}</p>
+        <h3>🧤 处理建议摘要</h3>
+        <ul>
+            ${report.handlingAdvice.contactSafety.slice(0, 2).map((s) => `<li>${s}</li>`).join('')}
+        </ul>
+        <h3>☠️ 相似有毒种预警</h3>
+        <p>${report.toxicSpeciesWarning.seasonalWarning}</p>
+        <h3>🔍 专家建议</h3>
+        <p>${report.observationAdvice.expertRecommendation}</p>
+    </div>`;
+				}
+			)
+			.join('')}
+    <div class="footer">
+        <p>⚠️ 本报告仅供参考，不能替代专业鉴定。食用野生菌存在风险，请务必谨慎。</p>
+    </div>
+</body>
+</html>`;
+
+		const filename = `预警报告-批量-${new Date().toISOString().split('T')[0]}.html`;
+		downloadFile(htmlContent, filename, 'text/html');
 	}
 
 	function generateShareLink() {
@@ -146,7 +229,7 @@
 					<h3 class="card-title">导出选项</h3>
 				</div>
 				<div class="card-section">
-					<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 						<div class="p-4 border border-surface-200-700-token rounded-lg">
 							<div class="flex items-center gap-3 mb-3">
 								<span class="material-icons text-primary-500">table_view</span>
@@ -180,6 +263,24 @@
 							>
 								<span class="material-icons">download</span>
 								导出 JSON ({selectedCount} 条)
+							</button>
+						</div>
+
+						<div class="p-4 border border-surface-200-700-token rounded-lg">
+							<div class="flex items-center gap-3 mb-3">
+								<span class="material-icons text-warning-500">security</span>
+								<h4 class="font-semibold">安全预警报告</h4>
+							</div>
+							<p class="text-sm text-surface-500 mb-4">
+								生成包含食用风险、处理建议的HTML格式报告
+							</p>
+							<button
+								class="btn btn-warning w-full"
+								onclick={handleExportWarningReport}
+								disabled={allSamples.length === 0}
+							>
+								<span class="material-icons">download</span>
+								导出预警报告 ({selectedCount} 条)
 							</button>
 						</div>
 					</div>
